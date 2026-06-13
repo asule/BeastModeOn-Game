@@ -18,7 +18,7 @@ import { buildStory } from './story'
 
 const TICK_MS = 250
 const MAX_TICKS = 240 // 60s hard cap
-const ARENA_R = 5.5
+const ARENA_R = 4.0
 
 interface PowerProfile {
   base: number
@@ -62,18 +62,19 @@ interface FighterState {
 }
 
 function preferredDistance(bp: FighterBlueprint): number {
+  // Kept tight so fighters stay close and trade blows instead of roaming.
   switch (bp.fightingStyle) {
     case 'grappler':
     case 'rusher':
-      return 1.2
+      return 1.1
     case 'zoner':
-      return 6.5
+      return 3.4
     case 'evasive':
-      return 5.0
+      return 2.8
     case 'tank':
-      return 2.5
+      return 1.9
     default:
-      return 3.0
+      return 2.1
   }
 }
 
@@ -335,7 +336,7 @@ export function simulateBattle(
       let effect: BattleEffect = (prof.applies as BattleEffect) || 'hit'
       let dmg = prof.base
 
-      const dodge = Math.min(0.45, o.bp.stats.agility / 300 + (o.bp.archetype === 'flying' ? 0.1 : 0))
+      const dodge = Math.min(0.28, o.bp.stats.agility / 420 + (o.bp.archetype === 'flying' ? 0.06 : 0))
       const accuracy = s.bp.stats.agility / 400
       if (rng() < Math.max(0.03, dodge - accuracy)) {
         pushEvent(id, 1 - id as 0 | 1, label, action, state, 0, 'miss', commentary(s, o, label, 'miss', 0))
