@@ -38,6 +38,8 @@ interface GameState {
   inputs: [FighterInput, FighterInput]
   blueprints: [FighterBlueprint | null, FighterBlueprint | null]
   result: BattleResult | null
+  // bumped every time a battle should (re)start, so the scene remounts/resets
+  playId: number
   settings: Settings
   settingsOpen: boolean
 
@@ -49,6 +51,7 @@ interface GameState {
   generate: () => Promise<void>
   fight: () => void
   rematch: () => void
+  replay: () => void
   newFight: () => void
   editFighters: () => void
   openSettings: () => void
@@ -63,6 +66,7 @@ export const useGame = create<GameState>((set, get) => ({
   inputs: [emptyInput(), emptyInput()],
   blueprints: [null, null],
   result: null,
+  playId: 0,
   settings: loadSettings(),
   settingsOpen: false,
 
@@ -95,20 +99,25 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   fight: () => {
-    const { blueprints } = get()
+    const { blueprints, playId } = get()
     if (!blueprints[0] || !blueprints[1]) return
     const seed = (Math.random() * 0xffffffff) >>> 0
     const result = simulateBattle(blueprints[0], blueprints[1], seed)
-    set({ result, screen: 'battle' })
+    set({ result, screen: 'battle', playId: playId + 1 })
   },
 
   rematch: () => {
     // Same fighters, fresh seed → new fight.
-    const { blueprints } = get()
+    const { blueprints, playId } = get()
     if (!blueprints[0] || !blueprints[1]) return
     const seed = (Math.random() * 0xffffffff) >>> 0
     const result = simulateBattle(blueprints[0], blueprints[1], seed)
-    set({ result, screen: 'battle' })
+    set({ result, screen: 'battle', playId: playId + 1 })
+  },
+
+  replay: () => {
+    // Same fight (same event log), just replay it from the start.
+    set((st) => ({ screen: 'battle', playId: st.playId + 1 }))
   },
 
   newFight: () =>
