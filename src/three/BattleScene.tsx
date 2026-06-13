@@ -4,14 +4,17 @@ import { ContactShadows } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { Group, MathUtils } from 'three'
 import type { BattleResult, BattleEffect, Power } from '../types'
+import { maxHpOf } from '../engine/battle'
 import Arena from './Arena'
-import Fighter3D from './Fighter3D'
+import ModelFighter from './ModelFighter'
 import Particles, { type ParticlesHandle } from './Particles'
 import Rings, { type RingsHandle } from './Rings'
 import Projectiles, { type ProjectilesHandle } from './Projectiles'
 import { makeAnim, type FighterAnim } from './toon'
 
-const PLAYBACK_SPEED = 1.4
+// Target on-screen fight duration window (the fight always lasts ≥ 20s).
+const MIN_REAL_MS = 20000
+const MAX_REAL_MS = 30000
 
 const EFFECT_COLOR: Record<BattleEffect, string> = {
   none: '#ffffff',
@@ -39,7 +42,7 @@ function attackKind(p: Power): FighterAnim['attackKind'] {
 }
 
 export function maxHp(result: BattleResult, id: 0 | 1): number {
-  return Math.round(80 + result.fighters[id].stats.durability * 1.4)
+  return maxHpOf(result.fighters[id])
 }
 
 interface PlaybackProps {
@@ -76,6 +79,11 @@ function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) 
   const prev = useRef<[number, number]>([-4, 4])
 
   const loserId = (1 - result.winnerId) as 0 | 1
+
+  // Pick a playback speed so the fight fills 20–30s of real time, as close to
+  // natural 1x as possible.
+  const simMs = result.durationMs || 1
+  const speed = Math.min(simMs / MIN_REAL_MS, Math.max(simMs / MAX_REAL_MS, 1))
 
   useEffect(() => {
     elapsed.current = 0
@@ -117,7 +125,7 @@ function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) 
     const events = result.events
 
     // Hit-stop freezes time advance (poses still settle).
-    let advance = dt * 1000 * PLAYBACK_SPEED
+    let advance = dt * 1000 * speed
     if (hitstop.current > 0) {
       hitstop.current -= dt
       advance = 0
@@ -245,10 +253,10 @@ function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) 
   return (
     <>
       <group ref={g0} position={[-4, 0, 0]}>
-        <Fighter3D bp={result.fighters[0]} facing={1} animRef={anim0} />
+        <ModelFighter bp={result.fighters[0]} facing={1} animRef={anim0} />
       </group>
       <group ref={g1} position={[4, 0, 0]}>
-        <Fighter3D bp={result.fighters[1]} facing={-1} animRef={anim1} />
+        <ModelFighter bp={result.fighters[1]} facing={-1} animRef={anim1} />
       </group>
       <Particles ref={particles} />
       <Rings ref={rings} />

@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Group } from 'three'
 import type { FighterBlueprint } from '../types'
-import Fighter3D from './Fighter3D'
+import ModelFighter from './ModelFighter'
 
 function Spin({ bp }: { bp: FighterBlueprint }) {
   const ref = useRef<Group>(null)
@@ -10,8 +10,8 @@ function Spin({ bp }: { bp: FighterBlueprint }) {
     if (ref.current) ref.current.rotation.y = s.clock.elapsedTime * 0.6
   })
   return (
-    <group ref={ref} position={[0, -1.2, 0]}>
-      <Fighter3D bp={bp} facing={1} />
+    <group ref={ref} position={[0, -1.1, 0]}>
+      <ModelFighter bp={bp} facing={1} />
     </group>
   )
 }
