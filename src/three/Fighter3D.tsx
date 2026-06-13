@@ -1,9 +1,10 @@
 import { forwardRef, useMemo, useRef, type MutableRefObject, type RefObject, type ReactNode } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Outlines } from '@react-three/drei'
-import { Group, MathUtils } from 'three'
+import { Group, MathUtils, type Texture } from 'three'
 import type { FighterBlueprint } from '../types'
 import { toonGradient, makeAnim, type FighterAnim } from './toon'
+import { getTexture, patternFor } from './textures'
 
 // ---------------------------------------------------------------------------
 // An articulated, cel-shaded fighter built from primitives but rigged with a
@@ -28,6 +29,7 @@ function Part({
   position,
   rotation,
   outline = 0.025,
+  texture,
   children,
 }: {
   color: string
@@ -36,13 +38,20 @@ function Part({
   position?: [number, number, number]
   rotation?: [number, number, number]
   outline?: number
+  texture?: Texture
   children?: ReactNode
 }) {
   const grad = toonGradient()
   return (
     <mesh position={position} rotation={rotation} castShadow>
       <boxGeometry args={args} />
-      <meshToonMaterial color={color} gradientMap={grad} emissive={emissive ?? '#000000'} emissiveIntensity={emissive ? 0.7 : 0} />
+      <meshToonMaterial
+        color={texture ? '#ffffff' : color}
+        map={texture}
+        gradientMap={grad}
+        emissive={emissive ?? '#000000'}
+        emissiveIntensity={emissive ? 0.7 : 0}
+      />
       {outline > 0 && <Outlines thickness={outline} color={OUTLINE} />}
       {children}
     </mesh>
@@ -51,6 +60,9 @@ function Part({
 
 const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, facing, animRef }, ref) {
   const { parts, colors } = bp
+  const pat = patternFor(bp.material, bp.archetype)
+  const primaryTex = useMemo(() => getTexture(pat, colors.primary), [pat, colors.primary])
+  const secondaryTex = useMemo(() => getTexture(pat, colors.secondary), [pat, colors.secondary])
   const idle = useRef<FighterAnim>(makeAnim(facing))
   const anim = animRef ?? idle
 
@@ -214,11 +226,11 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
     <group ref={ref} scale={[facing, 1, 1]}>
       <group ref={hips} position={[0, 0.9, 0]}>
         {/* pelvis */}
-        <Part color={colors.secondary} emissive={bodyEmissive} args={[dims.torsoW * 0.8, 0.3, 0.5]} />
+        <Part color={colors.secondary} emissive={bodyEmissive} args={[dims.torsoW * 0.8, 0.3, 0.5]} texture={secondaryTex} />
 
         {/* ---- Torso ---- */}
         <group ref={torso} position={[0, 0.15, 0]}>
-          <Part color={colors.primary} emissive={bodyEmissive} args={[dims.torsoW, dims.torsoH, 0.5]} position={[0, dims.torsoH / 2, 0]}>
+          <Part color={colors.primary} emissive={bodyEmissive} args={[dims.torsoW, dims.torsoH, 0.5]} position={[0, dims.torsoH / 2, 0]} texture={primaryTex}>
             {parts.extras.includes('armor') && (
               <Part color={colors.accent} args={[dims.torsoW + 0.12, dims.torsoH * 0.6, 0.58]} position={[0.05, 0, 0]} outline={0.015} />
             )}
@@ -240,11 +252,11 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
           {/* ---- Head ---- */}
           <group ref={head} position={[0.04, dims.torsoH + 0.45, 0]}>
             {parts.head === 'cube' ? (
-              <Part color={colors.secondary} emissive={bodyEmissive} args={[0.62, 0.62, 0.62]} />
+              <Part color={colors.secondary} emissive={bodyEmissive} args={[0.62, 0.62, 0.62]} texture={secondaryTex} />
             ) : (
               <mesh castShadow>
                 <sphereGeometry args={[0.42, 18, 14]} />
-                <meshToonMaterial color={colors.secondary} gradientMap={toonGradient()} emissive={bodyEmissive ?? '#000'} emissiveIntensity={bodyEmissive ? 0.6 : 0} />
+                <meshToonMaterial color="#ffffff" map={secondaryTex} gradientMap={toonGradient()} emissive={bodyEmissive ?? '#000'} emissiveIntensity={bodyEmissive ? 0.6 : 0} />
                 <Outlines thickness={0.025} color={OUTLINE} />
               </mesh>
             )}
@@ -272,7 +284,7 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
           {/* ---- Front arm ---- */}
           <group ref={armF} position={[0.05, dims.torsoH - 0.02, armOffZ]}>
-            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} texture={primaryTex} />
             <group ref={elbowF} position={[0, -dims.armLen, 0]}>
               <Part color={colors.primary} emissive={bodyEmissive} args={[0.28, dims.armLen, 0.28]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
               {fist(handGlowF)}
@@ -281,7 +293,7 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
           {/* ---- Back arm ---- */}
           <group ref={armB} position={[0.05, dims.torsoH - 0.02, -armOffZ]}>
-            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} texture={primaryTex} />
             <group ref={elbowB} position={[0, -dims.armLen, 0]}>
               <Part color={colors.primary} emissive={bodyEmissive} args={[0.28, dims.armLen, 0.28]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
               {fist(handGlowB)}
@@ -301,7 +313,7 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
         {/* ---- Front leg ---- */}
         <group ref={legF} position={[0.02, -0.15, legOffZ]}>
-          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
+          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} texture={secondaryTex} />
           <group ref={shinF} position={[0, -dims.legLen, 0]}>
             <Part color={colors.secondary} emissive={bodyEmissive} args={[0.33, dims.legLen, 0.33]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
             <Part color={colors.primary} args={[0.46, 0.22, 0.4]} position={[0.1, -dims.legLen, 0]} outline={0.02} />
@@ -310,7 +322,7 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
         {/* ---- Back leg ---- */}
         <group ref={legB} position={[0.02, -0.15, -legOffZ]}>
-          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
+          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} texture={secondaryTex} />
           <Part color={colors.secondary} emissive={bodyEmissive} args={[0.33, dims.legLen, 0.33]} position={[0, -dims.legLen * 1.5, 0]} outline={0.02} />
           <Part color={colors.primary} args={[0.46, 0.22, 0.4]} position={[0.1, -dims.legLen * 2, 0]} outline={0.02} />
         </group>
