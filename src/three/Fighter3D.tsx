@@ -77,11 +77,11 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
     const brute = bp.archetype === 'brute' || bp.archetype === 'crab'
     const lithe = bp.archetype === 'flying' || bp.archetype === 'serpent'
     return {
-      torsoW: brute ? 0.95 : lithe ? 0.6 : 0.78,
-      torsoH: brute ? 1.05 : 1.0,
-      shoulderW: brute ? 1.15 : 0.8,
+      torsoW: brute ? 1.15 : lithe ? 0.82 : 0.98,
+      torsoH: brute ? 1.15 : 1.05,
+      shoulderW: brute ? 1.35 : 1.0,
       armLen: 0.5,
-      legLen: brute ? 0.5 : 0.62,
+      legLen: brute ? 0.5 : 0.6,
     }
   }, [bp.archetype])
 
@@ -198,7 +198,7 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
           ))}
         </>
       ) : (
-        <Part color={colors.secondary} args={[0.22, 0.22, 0.22]} outline={0.02} />
+        <Part color={colors.secondary} args={[0.34, 0.34, 0.34]} outline={0.02} />
       )}
       {/* cast glow */}
       <group ref={glowRef} scale={0.001}>
@@ -240,10 +240,10 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
           {/* ---- Head ---- */}
           <group ref={head} position={[0.04, dims.torsoH + 0.45, 0]}>
             {parts.head === 'cube' ? (
-              <Part color={colors.secondary} emissive={bodyEmissive} args={[0.5, 0.5, 0.5]} />
+              <Part color={colors.secondary} emissive={bodyEmissive} args={[0.62, 0.62, 0.62]} />
             ) : (
               <mesh castShadow>
-                <sphereGeometry args={[0.32, 18, 14]} />
+                <sphereGeometry args={[0.42, 18, 14]} />
                 <meshToonMaterial color={colors.secondary} gradientMap={toonGradient()} emissive={bodyEmissive ?? '#000'} emissiveIntensity={bodyEmissive ? 0.6 : 0} />
                 <Outlines thickness={0.025} color={OUTLINE} />
               </mesh>
@@ -272,18 +272,18 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
           {/* ---- Front arm ---- */}
           <group ref={armF} position={[0.05, dims.torsoH - 0.02, armOffZ]}>
-            <Part color={colors.primary} emissive={bodyEmissive} args={[0.2, dims.armLen, 0.2]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
             <group ref={elbowF} position={[0, -dims.armLen, 0]}>
-              <Part color={colors.primary} emissive={bodyEmissive} args={[0.18, dims.armLen, 0.18]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+              <Part color={colors.primary} emissive={bodyEmissive} args={[0.28, dims.armLen, 0.28]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
               {fist(handGlowF)}
             </group>
           </group>
 
           {/* ---- Back arm ---- */}
           <group ref={armB} position={[0.05, dims.torsoH - 0.02, -armOffZ]}>
-            <Part color={colors.primary} emissive={bodyEmissive} args={[0.2, dims.armLen, 0.2]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+            <Part color={colors.primary} emissive={bodyEmissive} args={[0.31, dims.armLen, 0.31]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
             <group ref={elbowB} position={[0, -dims.armLen, 0]}>
-              <Part color={colors.primary} emissive={bodyEmissive} args={[0.18, dims.armLen, 0.18]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
+              <Part color={colors.primary} emissive={bodyEmissive} args={[0.28, dims.armLen, 0.28]} position={[0, -dims.armLen / 2, 0]} outline={0.02} />
               {fist(handGlowB)}
             </group>
           </group>
@@ -301,18 +301,18 @@ const Fighter3D = forwardRef<Group, Fighter3DProps>(function Fighter3D({ bp, fac
 
         {/* ---- Front leg ---- */}
         <group ref={legF} position={[0.02, -0.15, legOffZ]}>
-          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.24, dims.legLen, 0.24]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
+          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
           <group ref={shinF} position={[0, -dims.legLen, 0]}>
-            <Part color={colors.secondary} emissive={bodyEmissive} args={[0.22, dims.legLen, 0.22]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
-            <Part color={colors.primary} args={[0.34, 0.16, 0.26]} position={[0.08, -dims.legLen, 0]} outline={0.02} />
+            <Part color={colors.secondary} emissive={bodyEmissive} args={[0.33, dims.legLen, 0.33]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
+            <Part color={colors.primary} args={[0.46, 0.22, 0.4]} position={[0.1, -dims.legLen, 0]} outline={0.02} />
           </group>
         </group>
 
         {/* ---- Back leg ---- */}
         <group ref={legB} position={[0.02, -0.15, -legOffZ]}>
-          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.24, dims.legLen, 0.24]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
-          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.22, dims.legLen, 0.22]} position={[0, -dims.legLen * 1.5, 0]} outline={0.02} />
-          <Part color={colors.primary} args={[0.34, 0.16, 0.26]} position={[0.08, -dims.legLen * 2, 0]} outline={0.02} />
+          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.36, dims.legLen, 0.36]} position={[0, -dims.legLen / 2, 0]} outline={0.02} />
+          <Part color={colors.secondary} emissive={bodyEmissive} args={[0.33, dims.legLen, 0.33]} position={[0, -dims.legLen * 1.5, 0]} outline={0.02} />
+          <Part color={colors.primary} args={[0.46, 0.22, 0.4]} position={[0.1, -dims.legLen * 2, 0]} outline={0.02} />
         </group>
 
         {/* tail */}
