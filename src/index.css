@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #06040f;
+  color: #e7e3ff;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Arcade scanline / vignette flavor on the root container. */
+.crt-vignette::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  z-index: 50;
+}
+
+@layer components {
+  .neon-title {
+    font-family: 'Press Start 2P', system-ui, sans-serif;
+    color: #fff;
+    text-shadow:
+      0 0 6px #00f0ff,
+      0 0 14px #ff2bd6,
+      0 0 28px #ff2bd6;
+  }
+
+  .btn {
+    @apply rounded-md px-6 py-3 font-display text-xs uppercase tracking-wider transition-transform active:scale-95 select-none;
+  }
+  .btn-primary {
+    @apply btn bg-neon-pink text-white;
+    box-shadow: 0 0 12px rgba(255, 43, 214, 0.7);
+  }
+  .btn-secondary {
+    @apply btn bg-transparent text-neon-cyan;
+    border: 2px solid #00f0ff;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  }
+  .panel {
+    @apply rounded-lg border border-neon-purple/40 bg-black/40 backdrop-blur-sm;
+    box-shadow: 0 0 18px rgba(155, 92, 255, 0.25);
+  }
+  .ff-textarea {
+    @apply w-full rounded-md border border-neon-cyan/40 bg-black/50 p-3 text-base text-white outline-none transition-colors;
+    @apply focus:border-neon-cyan;
+    resize: none;
+    font-family: 'Rajdhani', sans-serif;
+  }
+}
+
+/* Hide scrollbars on the commentary feed but keep scrolling. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
