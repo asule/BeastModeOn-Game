@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF, useAnimations } from '@react-three/drei'
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { AnimationAction, Box3, Color, LoopOnce, Mesh, MeshStandardMaterial, Vector3 } from 'three'
+import { AnimationAction, Color, LoopOnce, Mesh, MeshStandardMaterial } from 'three'
 import type { FighterBlueprint } from '../types'
 import type { FighterAnim } from './toon'
 
@@ -32,19 +32,19 @@ const ATTACK_CLIP: Record<FighterAnim['attackKind'], string> = {
 function archetypeShape(a: FighterBlueprint['archetype']) {
   switch (a) {
     case 'brute':
-      return { h: 2.7, bulk: 1.28 }
+      return { scale: 1.5, bulk: 1.28 }
     case 'crab':
-      return { h: 2.4, bulk: 1.25 }
+      return { scale: 1.3, bulk: 1.25 }
     case 'blob':
-      return { h: 2.2, bulk: 1.35 }
+      return { scale: 1.25, bulk: 1.4 }
     case 'flying':
-      return { h: 2.0, bulk: 0.9 }
+      return { scale: 1.1, bulk: 0.9 }
     case 'serpent':
-      return { h: 2.15, bulk: 0.92 }
+      return { scale: 1.15, bulk: 0.92 }
     case 'beast':
-      return { h: 2.35, bulk: 1.05 }
+      return { scale: 1.3, bulk: 1.05 }
     default:
-      return { h: 2.35, bulk: 1.0 }
+      return { scale: 1.3, bulk: 1.0 }
   }
 }
 
@@ -83,15 +83,12 @@ export default function GLTFFighter({ bp, facing, animRef }: Props) {
       m.material = Array.isArray(m.material) ? recolored : recolored[0]
     })
 
-    // Scale to target height and sit feet on the ground.
-    const { h, bulk } = archetypeShape(bp.archetype)
-    const box = new Box3().setFromObject(model)
-    const size = new Vector3()
-    box.getSize(size)
-    const s = size.y > 0 ? h / size.y : 1
-    model.scale.set(s * bulk, s, s * bulk)
-    const box2 = new Box3().setFromObject(model)
-    model.position.y = -box2.min.y
+    // Size the model. RobotExpressive is ~1.8 units tall at scale 1 with its
+    // origin at the feet, so we use a fixed per-archetype scale (measuring a
+    // skinned mesh's bounds before the first frame is unreliable).
+    const { scale, bulk } = archetypeShape(bp.archetype)
+    model.scale.set(scale * bulk, scale, scale * bulk)
+    model.position.y = 0
     model.rotation.y = facing === 1 ? Math.PI / 2 : -Math.PI / 2
   }, [model, bp, facing])
 
