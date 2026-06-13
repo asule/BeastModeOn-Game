@@ -190,8 +190,14 @@ function commentary(att: FighterState, def: FighterState, action: string, effect
   }
 }
 
+// HP pool for a fighter — exported so renderers can size health bars.
+export function maxHpOf(bp: FighterBlueprint): number {
+  // Higher HP pools so fights naturally last longer (≥20s of action).
+  return Math.round(170 + bp.stats.durability * 2.6)
+}
+
 function makeState(id: 0 | 1, bp: FighterBlueprint): FighterState {
-  const maxHp = Math.round(80 + bp.stats.durability * 1.4)
+  const maxHp = maxHpOf(bp)
   return {
     id,
     bp,
@@ -255,7 +261,7 @@ export function simulateBattle(
     // Poison damage-over-time at the start of the tick.
     for (const s of states) {
       if (s.poisonTicks > 0) {
-        const dot = Math.max(2, Math.round(s.maxHp * 0.015))
+        const dot = Math.max(2, Math.round(s.maxHp * 0.01))
         s.hp -= dot
         s.poisonTicks--
       }
@@ -301,7 +307,7 @@ export function simulateBattle(
           s.shieldTicks = 4
           pushEvent(id, id, label, action, 'shield', 0, 'none', commentary(s, o, label, 'none', 0))
         } else if (action === 'heal') {
-          const amt = Math.round(s.maxHp * 0.22)
+          const amt = Math.round(s.maxHp * 0.16)
           s.hp = Math.min(s.maxHp, s.hp + amt)
           pushEvent(id, id, label, action, 'recover', 0, 'heal', commentary(s, o, label, 'heal', amt))
         }
@@ -349,6 +355,8 @@ export function simulateBattle(
       } else if (isCrit) {
         effect = 'crit'
       }
+      // Global pacing factor: lower per-hit damage so fights run longer.
+      dmg *= 0.62
       dmg = Math.max(1, dmg)
       o.hp -= dmg
 
