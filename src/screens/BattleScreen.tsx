@@ -28,7 +28,9 @@ export default function BattleScreen() {
 
   const [hp, setHp] = useState<[number, number]>([1, 1])
   const [feed, setFeed] = useState<string[]>([])
+  const [flash, setFlash] = useState<string | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>()
 
   const onHp = useCallback((h: [number, number]) => setHp(h), [])
   const onLine = useCallback((text: string) => {
@@ -37,6 +39,11 @@ export default function BattleScreen() {
       const next = [...f, text]
       return next.slice(-8)
     })
+  }, [])
+  const onFlash = useCallback((color: string) => {
+    setFlash(color)
+    clearTimeout(flashTimer.current)
+    flashTimer.current = setTimeout(() => setFlash(null), 140)
   }, [])
   const onFinished = useCallback(() => setScreen('winner'), [setScreen])
 
@@ -57,7 +64,15 @@ export default function BattleScreen() {
 
   return (
     <div className="relative h-full w-full">
-      <BattleScene key={playId} result={result} onHp={onHp} onLine={onLine} onFinished={onFinished} />
+      <BattleScene key={playId} result={result} onHp={onHp} onLine={onLine} onFinished={onFinished} onFlash={onFlash} />
+
+      {/* Impact / KO screen flash */}
+      {flash && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20"
+          style={{ background: flash, opacity: 0.45, mixBlendMode: 'screen' }}
+        />
+      )}
 
       {/* HUD overlay */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">

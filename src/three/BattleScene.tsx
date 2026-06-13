@@ -1,16 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { ContactShadows } from '@react-three/drei'
+import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing'
 import { Group, MathUtils } from 'three'
-import type { BattleResult, BattleEffect } from '../types'
+import type { BattleResult, BattleEffect, Power } from '../types'
 import Arena from './Arena'
 import Fighter3D from './Fighter3D'
 import Particles, { type ParticlesHandle } from './Particles'
+import Rings, { type RingsHandle } from './Rings'
+import Projectiles, { type ProjectilesHandle } from './Projectiles'
+import { makeAnim, type FighterAnim } from './toon'
 
-// Replays a pre-simulated BattleResult event log over real time with
-// procedural animation: position lerp, attack lunges, hit shake/squash,
-// particle bursts, and an auto camera that punches in on big hits.
-
-const PLAYBACK_SPEED = 1.5 // sim ms per real ms multiplier
+const PLAYBACK_SPEED = 1.4
 
 const EFFECT_COLOR: Record<BattleEffect, string> = {
   none: '#ffffff',
@@ -28,49 +29,105 @@ const EFFECT_COLOR: Record<BattleEffect, string> = {
   ko: '#ff2bd6',
 }
 
+const RANGED = new Set<Power>(['poison', 'fire', 'ice', 'lightning', 'projectile', 'fragment', 'ultimate'])
+
+function attackKind(p: Power): FighterAnim['attackKind'] {
+  if (p === 'grapple' || p === 'constrict') return 'slam'
+  if (p === 'dash') return 'kick'
+  if (RANGED.has(p) || p === 'teleport' || p === 'heal') return 'cast'
+  return 'punch'
+}
+
+export function maxHp(result: BattleResult, id: 0 | 1): number {
+  return Math.round(80 + result.fighters[id].stats.durability * 1.4)
+}
+
 interface PlaybackProps {
   result: BattleResult
   onHp: (hp: [number, number]) => void
   onLine: (text: string) => void
   onFinished: () => void
+  onFlash: (color: string) => void
 }
 
-function Playback({ result, onHp, onLine, onFinished }: PlaybackProps) {
+function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) {
   const g0 = useRef<Group>(null)
   const g1 = useRef<Group>(null)
+  const anim0 = useRef<FighterAnim>(makeAnim(1))
+  const anim1 = useRef<FighterAnim>(makeAnim(-1))
   const particles = useRef<ParticlesHandle>(null)
+  const rings = useRef<RingsHandle>(null)
+  const bolts = useRef<ProjectilesHandle>(null)
   const { camera } = useThree()
 
   const elapsed = useRef(0)
   const idx = useRef(0)
   const finished = useRef(false)
+  const hitstop = useRef(0)
+  const slowmo = useRef(0)
+  const camShake = useRef(0)
+  const camPunch = useRef(0)
+  const blockUntil = useRef<[number, number]>([0, 0])
+  const koTime = useRef<number>(Infinity)
   const target = useRef<[{ x: number; z: number }, { x: number; z: number }]>([
     { x: -4, z: 0 },
     { x: 4, z: 0 },
   ])
-  const lunge = useRef<[number, number]>([0, 0])
-  const shake = useRef<[number, number]>([0, 0])
-  const camShake = useRef(0)
-  const camPunch = useRef(0)
+  const prev = useRef<[number, number]>([-4, 4])
 
-  // Reset when a new result comes in (replay / rematch).
+  const loserId = (1 - result.winnerId) as 0 | 1
+
   useEffect(() => {
     elapsed.current = 0
     idx.current = 0
     finished.current = false
+    hitstop.current = 0
+    slowmo.current = 0
+    koTime.current = Infinity
+    anim0.current = makeAnim(1)
+    anim1.current = makeAnim(-1)
     target.current = [
       { x: -4, z: 0 },
       { x: 4, z: 0 },
     ]
-    onHp([result.fighters[0] ? maxHp(result, 0) : 1, result.fighters[1] ? maxHp(result, 1) : 1])
+    onHp([maxHp(result, 0), maxHp(result, 1)])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result])
 
-  useFrame((_state, dt) => {
-    elapsed.current += dt * 1000 * PLAYBACK_SPEED
+  const animOf = (id: 0 | 1) => (id === 0 ? anim0.current : anim1.current)
+  const groupOf = (id: 0 | 1) => (id === 0 ? g0.current : g1.current)
+
+  function impact(targetId: 0 | 1, x: number, z: number, effect: BattleEffect) {
+    animOf(targetId).hurt = 1
+    const color = EFFECT_COLOR[effect]
+    const big = effect === 'crit' || effect === 'ko'
+    particles.current?.burst(x, 1.1, z, color, big ? 40 : 16)
+    rings.current?.ring(x, 0.05, z, color, big)
+    rings.current?.ring(x, 1.1, z, color, false)
+    camShake.current = Math.min(0.5, camShake.current + (big ? 0.4 : 0.13))
+    if (big) {
+      camPunch.current = 1
+      onFlash(effect === 'ko' ? '#ffffff' : color)
+      hitstop.current = effect === 'ko' ? 0.14 : 0.07
+    }
+  }
+
+  useFrame((state, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.05)
     const events = result.events
 
-    // Process all events whose time has arrived.
+    // Hit-stop freezes time advance (poses still settle).
+    let advance = dt * 1000 * PLAYBACK_SPEED
+    if (hitstop.current > 0) {
+      hitstop.current -= dt
+      advance = 0
+    }
+    if (slowmo.current > 0) {
+      slowmo.current -= dt
+      advance *= 0.3
+    }
+    elapsed.current += advance
+
     while (idx.current < events.length && events[idx.current].t <= elapsed.current) {
       const e = events[idx.current]
       target.current = [
@@ -80,74 +137,105 @@ function Playback({ result, onHp, onLine, onFinished }: PlaybackProps) {
       onHp([e.hp[0], e.hp[1]])
       if (e.text) onLine(e.text)
 
+      const actor = animOf(e.actorId)
       if (e.power === 'move' || e.power === 'idle') {
-        // movement only
-      } else if (e.effect === 'heal') {
-        const ag = e.actorId === 0 ? g0.current : g1.current
-        if (ag && particles.current) particles.current.burst(ag.position.x, 1.2, ag.position.z, '#39ff14', 10)
+        // handled by velocity
+      } else if (e.power === 'shield') {
+        blockUntil.current[e.actorId] = e.t + 1000
+      } else if (e.power === 'heal') {
+        actor.attackKind = 'cast'
+        actor.attack = 0.7
+        const ag = groupOf(e.actorId)
+        if (ag) particles.current?.burst(ag.position.x, 1.3, ag.position.z, '#39ff14', 14)
       } else {
-        lunge.current[e.actorId] = 0.5
-        if (e.effect !== 'miss' && e.effect !== 'none') {
-          const victim = e.targetId
-          shake.current[victim] = 0.28
-          const vg = victim === 0 ? g0.current : g1.current
-          if (vg && particles.current) {
-            particles.current.burst(vg.position.x, 1.1, vg.position.z, EFFECT_COLOR[e.effect], e.effect === 'ko' ? 36 : 14)
+        actor.attackKind = attackKind(e.power)
+        actor.attack = 1
+        if (e.effect !== 'miss') {
+          const tgt = target.current[e.targetId]
+          if (RANGED.has(e.power)) {
+            const ag = groupOf(e.actorId)
+            const fx = ag ? ag.position.x : target.current[e.actorId].x
+            const fz = ag ? ag.position.z : target.current[e.actorId].z
+            const eff = e.effect
+            bolts.current?.fire(fx, fz, tgt.x, tgt.z, EFFECT_COLOR[e.effect], (ix, iz) =>
+              impact(e.targetId, ix, iz, eff),
+            )
+          } else {
+            impact(e.targetId, tgt.x, tgt.z, e.effect)
           }
-          camShake.current = Math.min(0.4, camShake.current + (e.effect === 'crit' || e.effect === 'ko' ? 0.35 : 0.12))
-          if (e.effect === 'crit' || e.effect === 'ko' || e.power === 'ultimate') camPunch.current = 1
+        } else {
+          // a dodge: defender weaves
+          animOf(e.targetId).moving = 1
         }
       }
       idx.current++
     }
 
-    // Animate fighters toward their target positions with smooth follow.
+    // KO ramp for the loser once the final blow has played.
+    const last = events.length ? events[events.length - 1] : null
+    if (last && last.effect === 'ko' && idx.current >= events.length && koTime.current === Infinity) {
+      koTime.current = last.t
+      slowmo.current = 1.1
+    }
+
+    const t = state.clock.elapsedTime
     const groups = [g0.current, g1.current]
-    const t = _state.clock.elapsedTime
     for (let i = 0; i < 2; i++) {
       const g = groups[i]
       if (!g) continue
+      const a = animOf(i as 0 | 1)
       const tgt = target.current[i]
+
+      const before = g.position.x
       g.position.x = MathUtils.damp(g.position.x, tgt.x, 6, dt)
       g.position.z = MathUtils.damp(g.position.z, tgt.z, 6, dt)
 
-      // attack lunge toward opponent (f0 -> +x, f1 -> -x)
-      const dir = i === 0 ? 1 : -1
-      const lungeOffset = lunge.current[i] * dir * 1.4
-      lunge.current[i] = Math.max(0, lunge.current[i] - dt * 2.2)
+      // movement intensity from velocity
+      const vel = Math.abs(g.position.x - before) / Math.max(dt, 0.001)
+      a.moving = MathUtils.damp(a.moving, vel > 1.2 ? 1 : 0, 6, dt)
+      prev.current[i] = g.position.x
 
-      // hit shake jitter
+      // lunge toward opponent on attack
+      const dir = i === 0 ? 1 : -1
+      const lungeOffset = a.attack * dir * 0.9
+      // hit knockback away from opponent
+      const knock = -a.hurt * dir * 0.4
+
       let sx = 0
       let sz = 0
-      if (shake.current[i] > 0) {
-        const mag = shake.current[i]
-        sx = (Math.random() - 0.5) * mag
-        sz = (Math.random() - 0.5) * mag
-        shake.current[i] = Math.max(0, shake.current[i] - dt * 1.2)
+      if (a.hurt > 0.05) {
+        sx = (Math.random() - 0.5) * a.hurt * 0.25
+        sz = (Math.random() - 0.5) * a.hurt * 0.25
       }
-
-      g.position.x += lungeOffset + sx
+      g.position.x += lungeOffset + knock + sx
       g.position.z += sz
-      // idle bob + squash on shake
-      g.position.y = Math.sin(t * 4 + i) * 0.05
-      const squash = 1 - shake.current[i] * 0.5
-      g.scale.y = MathUtils.damp(g.scale.y, squash, 8, dt)
+
+      // block state from shield window
+      a.block = MathUtils.damp(a.block, elapsed.current < blockUntil.current[i] ? 1 : 0, 8, dt)
+
+      // KO ramp
+      if (i === loserId && elapsed.current >= koTime.current) {
+        a.ko = MathUtils.damp(a.ko, 1, 4, dt)
+      }
+      void t
     }
 
-    // Auto camera: gentle sway, punch-in on big hits, decaying shake.
+    // ---- Cinematic auto camera ----
     camPunch.current = Math.max(0, camPunch.current - dt * 0.8)
     camShake.current = Math.max(0, camShake.current - dt * 0.9)
-    const baseZ = 12 - camPunch.current * 3.5
-    const baseY = 6 - camPunch.current * 1.5
-    camera.position.x = MathUtils.damp(camera.position.x, Math.sin(t * 0.25) * 3, 2, dt) + (Math.random() - 0.5) * camShake.current
+    const midX = (target.current[0].x + target.current[1].x) / 2
+    const koZoom = koTime.current !== Infinity && elapsed.current >= koTime.current ? 1 : 0
+    const baseZ = 11 - camPunch.current * 3 - koZoom * 2.5
+    const baseY = 4.4 - camPunch.current * 1.2
+    const sway = Math.sin(t * 0.3) * 2.2
+    camera.position.x = MathUtils.damp(camera.position.x, midX * 0.5 + sway, 2.5, dt) + (Math.random() - 0.5) * camShake.current
     camera.position.y = MathUtils.damp(camera.position.y, baseY, 3, dt) + (Math.random() - 0.5) * camShake.current
     camera.position.z = MathUtils.damp(camera.position.z, baseZ, 3, dt)
-    camera.lookAt(0, 1.2, 0)
+    camera.lookAt(midX * 0.6, 1.3, 0)
 
-    // Finish detection.
     if (!finished.current && idx.current >= events.length) {
-      const last = events.length ? events[events.length - 1].t : 0
-      if (elapsed.current > last + 900) {
+      const lastT = events.length ? events[events.length - 1].t : 0
+      if (elapsed.current > lastT + 1100) {
         finished.current = true
         onFinished()
       }
@@ -157,18 +245,16 @@ function Playback({ result, onHp, onLine, onFinished }: PlaybackProps) {
   return (
     <>
       <group ref={g0} position={[-4, 0, 0]}>
-        <Fighter3D bp={result.fighters[0]} facing={1} />
+        <Fighter3D bp={result.fighters[0]} facing={1} animRef={anim0} />
       </group>
       <group ref={g1} position={[4, 0, 0]}>
-        <Fighter3D bp={result.fighters[1]} facing={-1} />
+        <Fighter3D bp={result.fighters[1]} facing={-1} animRef={anim1} />
       </group>
       <Particles ref={particles} />
+      <Rings ref={rings} />
+      <Projectiles ref={bolts} />
     </>
   )
-}
-
-export function maxHp(result: BattleResult, id: 0 | 1): number {
-  return Math.round(80 + result.fighters[id].stats.durability * 1.4)
 }
 
 interface BattleSceneProps {
@@ -176,15 +262,21 @@ interface BattleSceneProps {
   onHp: (hp: [number, number]) => void
   onLine: (text: string) => void
   onFinished: () => void
+  onFlash: (color: string) => void
 }
 
-export default function BattleScene({ result, onHp, onLine, onFinished }: BattleSceneProps) {
+export default function BattleScene({ result, onHp, onLine, onFinished, onFlash }: BattleSceneProps) {
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 6, 12], fov: 50 }} gl={{ antialias: true }}>
-      <color attach="background" args={['#06040f']} />
-      <fog attach="fog" args={['#06040f', 14, 30]} />
+    <Canvas shadows dpr={[1, 1.6]} camera={{ position: [0, 4.4, 11], fov: 48 }} gl={{ antialias: true }}>
+      <color attach="background" args={['#070414']} />
+      <fog attach="fog" args={['#0a0620', 16, 38]} />
       <Arena />
-      <Playback result={result} onHp={onHp} onLine={onLine} onFinished={onFinished} />
+      <ContactShadows position={[0, 0.04, 0]} scale={18} blur={2.4} far={6} opacity={0.55} color="#000010" />
+      <Playback result={result} onHp={onHp} onLine={onLine} onFinished={onFinished} onFlash={onFlash} />
+      <EffectComposer multisampling={0} enableNormalPass={false}>
+        <Bloom intensity={0.9} luminanceThreshold={0.25} luminanceSmoothing={0.9} mipmapBlur radius={0.7} />
+        <Vignette eskil={false} offset={0.25} darkness={0.85} />
+      </EffectComposer>
     </Canvas>
   )
 }
