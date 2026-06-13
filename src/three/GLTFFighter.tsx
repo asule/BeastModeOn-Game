@@ -152,7 +152,9 @@ export default function GLTFFighter({ bp, facing, animRef }: Props) {
     prevAttack.current = a.attack
 
     if (!attacking.current) {
-      fade(a.moving > 0.3 ? 'Walking' : 'Idle')
+      // Only "walk" on sustained travel; otherwise hold a ready stance so the
+      // punches/kicks read instead of constant strolling.
+      fade(a.moving > 0.5 ? 'Walking' : 'Idle')
     }
   })
 

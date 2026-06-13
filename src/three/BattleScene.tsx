@@ -200,12 +200,12 @@ function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) 
 
       // movement intensity from velocity
       const vel = Math.abs(g.position.x - before) / Math.max(dt, 0.001)
-      a.moving = MathUtils.damp(a.moving, vel > 1.2 ? 1 : 0, 6, dt)
+      a.moving = MathUtils.damp(a.moving, vel > 2.2 ? 1 : 0, 6, dt)
       prev.current[i] = g.position.x
 
-      // lunge toward opponent on attack
+      // lunge toward opponent on attack (step into the strike)
       const dir = i === 0 ? 1 : -1
-      const lungeOffset = a.attack * dir * 0.9
+      const lungeOffset = a.attack * dir * 1.5
       // hit knockback away from opponent
       const knock = -a.hurt * dir * 0.4
 
@@ -228,18 +228,23 @@ function Playback({ result, onHp, onLine, onFinished, onFlash }: PlaybackProps) 
       void t
     }
 
-    // ---- Cinematic auto camera ----
+    // ---- Cinematic auto camera that always frames both fighters ----
     camPunch.current = Math.max(0, camPunch.current - dt * 0.8)
     camShake.current = Math.max(0, camShake.current - dt * 0.9)
-    const midX = (target.current[0].x + target.current[1].x) / 2
+    const ax = g0.current ? g0.current.position.x : target.current[0].x
+    const bx = g1.current ? g1.current.position.x : target.current[1].x
+    const midX = (ax + bx) / 2
+    const sep = Math.abs(ax - bx)
     const koZoom = koTime.current !== Infinity && elapsed.current >= koTime.current ? 1 : 0
-    const baseZ = 11 - camPunch.current * 3 - koZoom * 2.5
-    const baseY = 4.4 - camPunch.current * 1.2
-    const sway = Math.sin(t * 0.3) * 2.2
-    camera.position.x = MathUtils.damp(camera.position.x, midX * 0.5 + sway, 2.5, dt) + (Math.random() - 0.5) * camShake.current
+    // pull back as the fighters separate so they never leave the frame
+    const fitZ = Math.max(10, sep * 1.25 + 6.5)
+    const baseZ = fitZ - camPunch.current * 3 - koZoom * 3
+    const baseY = 4.0 - camPunch.current * 1 + sep * 0.12
+    const sway = Math.sin(t * 0.25) * 1.0
+    camera.position.x = MathUtils.damp(camera.position.x, midX + sway, 3, dt) + (Math.random() - 0.5) * camShake.current
     camera.position.y = MathUtils.damp(camera.position.y, baseY, 3, dt) + (Math.random() - 0.5) * camShake.current
     camera.position.z = MathUtils.damp(camera.position.z, baseZ, 3, dt)
-    camera.lookAt(midX * 0.6, 1.3, 0)
+    camera.lookAt(midX, 1.3, 0)
 
     if (!finished.current && idx.current >= events.length) {
       const lastT = events.length ? events[events.length - 1].t : 0
